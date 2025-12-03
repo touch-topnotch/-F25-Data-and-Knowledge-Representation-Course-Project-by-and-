@@ -1,0 +1,180 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{microtype}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue}
+
+\title{Project Proposal: Applying Graph Neural Networks in Molecular Property Prediction with PyTorch Geometric}
+\author{
+    Nikita Zagainov \quad \href{mailto:n.zagainov@innopolis.university}{\texttt{n.zagainov@innopolis.university}} \\
+    Dmitry Tetkin \quad \href{mailto:d.tetkin@innopolis.university}{\texttt{d.tetkin@innopolis.university}} \\
+    Nikita Tsukanov \quad \href{mailto:n.tsukanov@innopolis.university}{\texttt{n.tsukanov@innopolis.university}}
+}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section*{Summary}
+We propose to develop a tutorial/case study on applying modern graph neural networks (GNNs) to molecular
+property regression in computational chemistry and drug discovery, using PyTorch Geometric (PyG). The
+tutorial will be step-by-step and self-contained for readers who know PyTorch but are new to graph ML, with
+clear code snippets, extensive visualizations, and Google Colab notebooks for full reproducibility.
+
+\section{Application domain}
+\textbf{Computational chemistry and drug discovery.} Molecules are naturally graphs: atoms as nodes and
+chemical bonds as edges. Predicting molecular properties is central to virtual screening and lead optimization.
+
+\section{Which dataset are you planning to use?}
+\textbf{Primary:} ZINC constrained solubility regression (logP), as curated by the GNN benchmarking suite
+(see \href{https://arxiv.org/abs/2003.00982}{Benchmarking GNNs}); available directly in PyG as \texttt{ZINC}
+(\href{https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.datasets.ZINC.html}{PyG ZINC}).\\
+\textbf{Fallback/Optional extension:} QM9 quantum chemistry dataset
+(\href{https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.datasets.QM9.html}{PyG
+QM9}; \href{https://doi.org/10.1038/sdata.2014.22}{Sci. Data 2014}).
+
+\section{Describe the dataset, prediction tasks, and metric}
+\textbf{Graph schema.}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Nodes:} atoms, with categorical features such as element type, formal charge; optionally
+        degree, aromaticity flags.
+    \item \textbf{Edges:} chemical bonds, with bond type (single/double/triple/aromatic) as categorical edge
+        features; optionally conjugation and ring membership.
+    \item \textbf{Labels:} graph-level scalar property.
+\end{itemize}
+\textbf{Task:} supervised \emph{graph-level regression}.\\
+\textbf{Metric:} mean absolute error (MAE) on the target property.\\
+\textbf{ZINC details:} \emph{Constrained solubility} (logP) regression; small molecules (up to 28 atoms)
+curated for benchmarking (\href{https://arxiv.org/abs/2003.00982}{Benchmarking GNNs}). Standard splits: 12k
+train / 1k val / 1k test with MAE as the official metric
+(\href{https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.datasets.ZINC.html}{PyG
+ZINC}; \href{https://arxiv.org/abs/2003.00982}{paper}).\\
+\textbf{QM9 details (optional):} Predict one or more quantum-mechanical properties (e.g., dipole moment,
+HOMO/LUMO, atomization energy). Standard MAE/\% errors per-target
+(\href{https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.datasets.QM9.html}{PyG
+QM9}; \href{https://doi.org/10.1038/sdata.2014.22}{dataset paper}).
+
+\section{Why did you choose the dataset?}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Small graphs, fast training:} molecules are typically < 30 nodes in ZINC, enabling rapid
+        iteration even on modest GPUs.
+    \item \textbf{Excellent PyG support:} convenient loaders and baselines reduce boilerplate
+        (\href{https://pytorch-geometric.readthedocs.io}{PyG docs}).
+    \item \textbf{Standardized splits and benchmarks:} ensures fair comparison and reproducibility
+        (\href{https://arxiv.org/abs/2003.00982}{Benchmarking GNNs};
+        \href{https://github.com/graphdeeplearning/benchmarking-gnns}{benchmarking-gnns repo}).
+    \item \textbf{Pedagogical clarity:} molecular graphs match the strengths of message passing, making
+        concepts intuitive to newcomers.
+\end{itemize}
+
+\section{Graph ML technique that you want to apply}
+\textbf{Message Passing Neural Networks (MPNNs)} with \textbf{edge-aware updates}. We will start with Graph
+Isomorphism Network (GIN; \href{https://arxiv.org/abs/1810.00826}{paper}) and its edge-feature-aware variant
+GINE (available as \texttt{GINEConv} in PyG;
+\href{https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html}{docs}).
+Pooling will use global add pooling, optionally with a virtual node.
+
+\section{Graph ML model you plan to use}
+\textbf{Backbone:} Stacked \texttt{GINEConv} layers with MLP message/update functions, each followed by
+BatchNorm, ReLU, and dropout.\\
+\textbf{Readout:} Global add pooling to obtain a graph embedding, then a small MLP for scalar prediction.\\
+\textbf{Training:} L2 loss (MSE), AdamW optimizer, cosine learning-rate schedule with warmup; early stopping
+on validation MSE.\\
+\textbf{Baselines:} (i) RDKit descriptors + XGBoost (\href{https://www.rdkit.org/}{RDKit};
+\href{https://xgboost.readthedocs.io/}{XGBoost}), (ii) an MLP on simple atom-type histograms.\\
+\textbf{Stretch (time-permitting):} virtual node, Stochastic Weight Averaging (SWA), and scaffold split
+robustness analysis.
+
+\section{Describe the model}
+\paragraph{GIN/GINE (edge-aware MPNN).} We will use Graph Isomorphism Network (GIN;
+\href{https://arxiv.org/abs/1810.00826}{paper}) and its edge-aware variant GINE
+(\href{https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html}{PyG
+GINEConv}). Intuitively, each layer updates an atom by aggregating representations from its neighbors; GINE
+augments this with bond-type information so messages depend on both neighboring atoms and the connecting bond.
+
+\paragraph{Graph Attention (GAT/GATv2).} As a complementary model, we will evaluate attention-based layers
+that learn importance weights over neighbors: GAT (\href{https://arxiv.org/abs/1710.10903}{paper},
+    \href{https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GATConv.html}{PyG
+GATConv}) and GATv2 (\href{https://arxiv.org/abs/2105.14491}{paper},
+    \href{https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GATv2Conv.html}{PyG
+GATv2Conv}). For molecules, edge features can modulate attention or messages, e.g., as in AttentiveFP
+(\href{https://arxiv.org/abs/1904.01279}{paper}).
+
+\paragraph{Readout and training.} We use a permutation-invariant global add pooling to obtain a
+molecule-level embedding, followed by a small MLP for scalar prediction. Training minimizes mean squared
+error (MSE) with AdamW and cosine learning-rate scheduling; early stopping monitors validation MSE. For
+reporting and comparison to benchmarks, we will evaluate using mean absolute error (MAE), as specified in the
+dataset protocols.
+
+\noindent\textbf{Planned architecture:} Input node/edge embeddings -> GINEConv + BatchNorm + ReLU + Dropout
+(repeat) -> Global Add Pooling -> MLP Readout -> Scalar prediction.\\
+\textbf{Hyperparameters (to be tuned):} layers 3/5/7; hidden size 64/128/256; dropout 0.0--0.5; learning rate
+1e-4--3e-3.
+
+\section{Why the model is appropriate for the dataset}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Expressivity:} GIN matches the Weisfeiler–Lehman (1-WL) test in discriminative power
+        (\href{https://arxiv.org/abs/1810.00826}{Xu et al., 2019}), aligning with motif/substructure
+        sensitivity needed for molecular properties.
+    \item \textbf{Edge features:} GINE directly incorporates bond types and related chemistry, crucial for
+        properties like solubility and electronic energies.
+    \item \textbf{Data regime:} For small graphs and moderate dataset sizes like ZINC, lightweight MPNNs with
+        global pooling are strong and efficient baselines.
+    \item \textbf{Simplicity and reproducibility:} Popular, well-supported layers in PyG minimize engineering
+        complexity while providing competitive performance.
+\end{itemize}
+
+%
+
+\section*{Links and references}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{PyTorch Geometric:} \href{https://pytorch-geometric.readthedocs.io}{docs}
+    \item \textbf{ZINC in PyG:}
+        \href{https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.datasets.ZINC.html}{dataset}
+        \;\, \textbf{Benchmarking GNNs:} \href{https://arxiv.org/abs/2003.00982}{paper} \;\,
+        \href{https://github.com/graphdeeplearning/benchmarking-gnns}{code}
+    \item \textbf{QM9 in PyG:}
+        \href{https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.datasets.QM9.html}{dataset}
+        \;\, \textbf{QM9 paper:} \href{https://doi.org/10.1038/sdata.2014.22}{Sci. Data 2014}
+    \item \textbf{GIN (How Powerful Are GNNs?):} \href{https://arxiv.org/abs/1810.00826}{paper}
+    \item \textbf{GAT:} \href{https://arxiv.org/abs/1710.10903}{paper} \;\,
+        \href{https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GATConv.html}{PyG
+        GATConv}
+    \item \textbf{GATv2:} \href{https://arxiv.org/abs/2105.14491}{paper} \;\,
+        \href{https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GATv2Conv.html}{PyG
+        GATv2Conv}
+    \item \textbf{AttentiveFP (edge-aware attention for molecules):} \href{https://arxiv.org/abs/1904.01279}{paper}
+    \item \textbf{GINEConv in PyG:}
+        \href{https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GINEConv.html}{docs}
+    \item \textbf{Papers With Code (SOTA browser):} \href{https://paperswithcode.com/sota}{link} \;\,
+        \textbf{OGB Leaderboards:} \href{https://ogb.stanford.edu/docs/leaderboards/}{link}
+    \item \textbf{RDKit:} \href{https://www.rdkit.org/}{link} \;\, \textbf{XGBoost:}
+        \href{https://xgboost.readthedocs.io/}{link}
+\end{itemize}
+
+\paragraph{Key references}
+\begin{itemize}[leftmargin=*]
+    \item K. Xu, W. Hu, J. Leskovec, S. Jegelka, ``How Powerful Are Graph Neural Networks?'' ICLR 2019.
+        \href{https://arxiv.org/abs/1810.00826}{arXiv:1810.00826}.
+    \item P. Veli\v{c}kovi\'c et al., ``Graph Attention Networks.'' ICLR 2018.
+        \href{https://arxiv.org/abs/1710.10903}{arXiv:1710.10903}.
+    \item B. Brody, U. Alon, E. Yahav, ``How Attentive are Graph Attention Networks?'' ICLR 2022.
+        \href{https://arxiv.org/abs/2105.14491}{arXiv:2105.14491}.
+    \item S. Xiong et al., ``Pushing the Boundaries of Molecular Representation for Drug Discovery with the
+        Graph Attention Mechanism.'' (AttentiveFP) \href{https://arxiv.org/abs/1904.01279}{arXiv:1904.01279}.
+    \item V. Dwivedi et al., ``Benchmarking Graph Neural Networks.''
+        \href{https://arxiv.org/abs/2003.00982}{arXiv:2003.00982}.
+\end{itemize}
+
+\vfill
+\noindent\textit{Group size:} 1--3 students. We will focus on well-established, classical graph ML methods
+and avoid research-heavy or novel architectures, prioritizing clarity and reproducibility.
+
+\end{document}
